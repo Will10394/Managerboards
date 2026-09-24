@@ -11,7 +11,18 @@ import path from 'node:path';
 
 const args = Object.fromEntries(process.argv.slice(2).map((a) => a.replace(/^--/, '').split('=')));
 const ROOT = path.resolve(path.dirname(new URL(import.meta.url).pathname), '..');
-const SRC_HTML = path.join(ROOT, args.html || 'app/rotation-tracker.html');
+// Uses whichever single .html file is in app/ — any name
+// (so a fresh export like Rotation_Tracker__standalone_29_.html works without renaming).
+function findTrackerHtml() {
+  if (args.html) return path.join(ROOT, args.html);
+  const dir = path.join(ROOT, 'app');
+  const htmls = fs.existsSync(dir) ? fs.readdirSync(dir).filter((f) => f.toLowerCase().endsWith('.html')) : [];
+  if (htmls.length === 1) return path.join(dir, htmls[0]);
+  if (!htmls.length) fail('no .html file in app/ — put the Rotation Tracker export there.');
+  // More than one: refuse rather than guess, so an old version never ships by accident.
+  fail('several .html files in app/ (' + htmls.join(', ') + ') — delete the old one(s) so only the version to deploy is left.');
+}
+const SRC_HTML = findTrackerHtml();
 const ENTRY = path.join(ROOT, args.entry || 'src/cloud.js');
 const OUT = path.join(ROOT, args.out || 'dist');
 
@@ -91,5 +102,6 @@ if (process.argv[1] === new URL(import.meta.url).pathname) {
     outfile: path.join(OUT, 'cloud.js'), logLevel: 'warning', legalComments: 'none',
   });
   const kb = (f) => (fs.statSync(path.join(OUT, f)).size / 1024).toFixed(0) + ' KB';
+  console.log('  source: app/' + path.basename(SRC_HTML));
   console.log(`✔ dist/index.html (${kb('index.html')}, hooks ${innerApplied ? 'applied' : 'already present'})  dist/cloud.js (${kb('cloud.js')})`);
 }
