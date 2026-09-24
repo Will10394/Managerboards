@@ -1,0 +1,23 @@
+{
+  "name": "rotation-tracker-cloud",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "test": "node --test test/*.test.mjs",
+    "sandbox": "ampx sandbox",
+    "build:e2e": "node scripts/build.mjs --entry=test/e2e-cloud-mock.js --out=dist-e2e"
+  },
+  "dependencies": {
+    "aws-amplify": "^6.15.0"
+  },
+  "devDependencies": {
+    "@aws-amplify/backend": "^1.16.0",
+    "@aws-amplify/backend-cli": "^1.8.0",
+    "aws-cdk-lib": "^2.200.0",
+    "constructs": "^10.4.0",
+    "esbuild": "^0.25.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.8.0"
+  }
+}
