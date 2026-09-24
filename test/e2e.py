@@ -37,6 +37,7 @@ def open_speed(ctx, errs):
     pg.goto('http://127.0.0.1:8765/index.html')
     pg.get_by_text('Weekly builder rotation').first.wait_for(timeout=15000)
     pg.get_by_text('Weekly builder rotation').first.click(); pg.wait_for_timeout(500)
+    pg.get_by_role('button',name='ROTATION').click(); pg.wait_for_timeout(300)  # Speed opens on Board
     return pg
 sel=lambda pg,i: pg.locator('select').nth(i)
 def wait_synced(pg):
@@ -73,7 +74,7 @@ with sync_playwright() as p:
     sel(b,10).select_option('Shakers'); wait_synced(b)
     check('A: sees B\'s edit live', wait_value(a,10,'Shakers'))
 
-    a.reload(); a.get_by_text('Weekly builder rotation').first.click(); a.wait_for_timeout(500)
+    a.reload(); a.get_by_text('Weekly builder rotation').first.click(); a.wait_for_timeout(500); a.get_by_role('button',name='ROTATION').click(); a.wait_for_timeout(300)
     check('A reload: all three edits persisted', [sel(a,i).input_value() for i in (9,10,13)]==['Shakers','Shakers','Learning'])
 
     # stale local copy in a browser that used the standalone file before
@@ -87,7 +88,7 @@ with sync_playwright() as p:
     # standalone fallback: cloud.js blocked -> RTCloud undefined -> plain localStorage app
     S=br.new_context(viewport={'width':1280,'height':900}); S.route('**/cloud.js', lambda r: r.abort())
     s=open_speed(S,errs); sel(s,9).select_option('Shakers'); s.wait_for_timeout(300)
-    s.reload(); s.get_by_text('Weekly builder rotation').first.click(); s.wait_for_timeout(400)
+    s.reload(); s.get_by_text('Weekly builder rotation').first.click(); s.wait_for_timeout(400); s.get_by_role('button',name='ROTATION').click(); s.wait_for_timeout(300)
     check('No cloud.js: behaves as standalone (localStorage)', sel(s,9).input_value()=='Shakers' and s.evaluate('typeof window.RTCloud')=='undefined')
 
     # migration: empty cloud + this browser has real data -> upload on confirm
