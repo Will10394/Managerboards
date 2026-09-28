@@ -1,17 +1,14 @@
 // Loaded (as dist/cloud.js) before the Rotation Tracker's bundler starts.
-// 1. signs the user in (Cognito), 2. pulls the shared dataset from DynamoDB,
-// 3. exposes window.RTCloud, which the tracker's loadData()/save() hooks use.
+// No login: every visitor gets guest credentials automatically (Cognito identity pool),
+// pulls the shared dataset from DynamoDB, and window.RTCloud feeds the tracker's
+// loadData()/save() hooks — so everyone sees and edits the same data.
 import { Amplify } from 'aws-amplify';
 import { generateClient } from 'aws-amplify/api';
-import {
-  signIn, confirmSignIn, signOut, getCurrentUser, fetchUserAttributes,
-  resetPassword, confirmResetPassword,
-} from 'aws-amplify/auth';
 import outputs from '../amplify_outputs.json';
 import { createSync } from './sync.js';
 
 Amplify.configure(outputs);
-const gql = generateClient({ authMode: 'userPool' });
+const gql = generateClient({ authMode: 'identityPool' });
 
 const APP_KEY = 'rotationTrackerV2'; // the tracker's own localStorage key
 const CLIENT_ID = (crypto.randomUUID && crypto.randomUUID()) || String(Math.random()).slice(2);
@@ -132,62 +129,6 @@ function form(html, onSubmit) {
   return f;
 }
 
-function loginFlow() {
-  return new Promise((resolve) => {
-    const showSignIn = (note) => {
-      const f = form(`
-        <div class="sub">Sign in with your work email</div>
-        <label>Email</label><input name="email" type="email" autocomplete="username" required>
-        <label>Password</label><input name="password" type="password" autocomplete="current-password" required>
-        <button class="primary" type="submit">Sign in</button>
-        ${note ? `<div class="msg">${esc(note)}</div>` : ''}
-        <button class="link" type="button" data-forgot>Forgot password?</button>`,
-      async ({ email, password }) => {
-        const r = await signIn({ username: email.trim(), password });
-        if (r.isSignedIn) return resolve();
-        if (r.nextStep.signInStep === 'CONFIRM_SIGN_IN_WITH_NEW_PASSWORD_REQUIRED') return showNewPassword();
-        if (r.nextStep.signInStep === 'RESET_PASSWORD') return showReset(email.trim());
-        throw new Error('Unsupported sign-in step: ' + r.nextStep.signInStep);
-      });
-      f.querySelector('[data-forgot]').onclick = () => showForgot(f.email.value.trim());
-    };
-    const showNewPassword = () => form(`
-        <div class="sub">First sign-in — choose your own password (8+ characters, upper, lower, number, symbol)</div>
-        <label>New password</label><input name="pw" type="password" autocomplete="new-password" required>
-        <label>Confirm</label><input name="pw2" type="password" autocomplete="new-password" required>
-        <button class="primary" type="submit">Set password</button>`,
-      async ({ pw, pw2 }) => {
-        if (pw !== pw2) throw new Error("Passwords don't match");
-        const r = await confirmSignIn({ challengeResponse: pw });
-        if (r.isSignedIn) return resolve();
-        throw new Error('Unexpected step: ' + r.nextStep.signInStep);
-      });
-    const showForgot = (email) => {
-      const f = form(`
-        <div class="sub">We'll email you a reset code</div>
-        <label>Email</label><input name="email" type="email" required value="${esc(email || '')}">
-        <button class="primary" type="submit">Send code</button>
-        <button class="link" type="button" data-back>Back to sign in</button>`,
-      async ({ email }) => { await resetPassword({ username: email.trim() }); showReset(email.trim()); });
-      f.querySelector('[data-back]').onclick = () => showSignIn();
-    };
-    const showReset = (email) => {
-      const f = form(`
-        <div class="sub">Enter the code sent to ${esc(email)}</div>
-        <label>Code</label><input name="code" inputmode="numeric" autocomplete="one-time-code" required>
-        <label>New password</label><input name="pw" type="password" autocomplete="new-password" required>
-        <button class="primary" type="submit">Reset password</button>
-        <button class="link" type="button" data-back>Back to sign in</button>`,
-      async ({ code, pw }) => {
-        await confirmResetPassword({ username: email, confirmationCode: code.trim(), newPassword: pw });
-        showSignIn('Password updated — sign in with your new password.');
-      });
-      f.querySelector('[data-back]').onclick = () => showSignIn();
-    };
-    showSignIn();
-  });
-}
-
 // ---------------------------------------------------------------- status pill
 let pill, pillState = 'saved', pillText = 'Synced', userEmail = '';
 function setPill(s, text) {
@@ -200,11 +141,7 @@ function mountPill() {
   if (pill && pill.isConnected) return;
   injectCss();
   pill = document.createElement('div'); pill.id = 'rtc-pill';
-  pill.innerHTML = `<i class="dot"></i><span></span><button type="button" title="${esc(userEmail)}">Sign out</button>`;
-  pill.querySelector('button').onclick = async () => {
-    if (sync.hasPending()) { await sync.flush(); }
-    await signOut(); location.reload();
-  };
+  pill.innerHTML = `<i class="dot"></i><span></span>`;
   document.body.appendChild(pill);
   setPill(pillState, pillText);
 }
@@ -227,8 +164,6 @@ function readLocal() {
 }
 
 async function boot() {
-  try { await getCurrentUser(); } catch (e) { await loginFlow(); }
-  try { userEmail = (await fetchUserAttributes()).email || ''; } catch (e) {}
   sync.setUserLabel(userEmail);
   api.subscribe((evt) => sync.handleEvent(evt));
 

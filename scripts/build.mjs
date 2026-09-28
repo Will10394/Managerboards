@@ -65,7 +65,8 @@ export function patchTracker(html) {
   if (encodeTemplate(tpl) !== raw.trim()) fail('template encoding round-trip mismatch — refusing to re-encode');
 
   let innerApplied = 0;
-  if (!tpl.includes('window.RTCloud')) {
+  // Marker is the loadData hook itself — the app may mention RTCloud elsewhere.
+  if (!tpl.includes('window.RTCloud.initialData')) {
     for (const [from, to] of INNER) {
       if (count(tpl, from) !== 1) fail('app hook anchor not found (or not unique):\n  ' + from.trim().slice(0, 90) + '…');
       tpl = tpl.replace(from, () => to);

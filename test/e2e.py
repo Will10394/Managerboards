@@ -32,6 +32,7 @@ def check(name, cond, extra=''):
     results.append((name, bool(cond))); print(('PASS ' if cond else 'FAIL ')+name, extra)
 def open_speed(ctx, errs):
     pg=ctx.new_page()
+    pg.add_init_script("try{localStorage.removeItem('rtView')}catch(e){}")  # start each load from the home screen
     pg.on('pageerror',lambda e: errs.append(str(e)))
     pg.on('dialog',lambda d: d.accept())
     pg.goto('http://127.0.0.1:8765/index.html')
@@ -69,7 +70,7 @@ with sync_playwright() as p:
     check('B: sees A\'s second edit live (no reload)', wait_value(b,13,'Learning'))
     b.wait_for_timeout(800)
     echo=[e for e in events[n_before:] if e['updatedBy']!=events[-1]['updatedBy']]
-    check('B did not echo the remote change back', len(events)-n_before==1, f'{len(events)-n_before} writes')
+    writers=set(e['updatedBy'] for e in events[n_before:]); check('B did not echo the remote change back', len(writers)==1, f'{len(events)-n_before} writes from {len(writers)} browser(s)')
 
     sel(b,10).select_option('Shakers'); wait_synced(b)
     check('A: sees B\'s edit live', wait_value(a,10,'Shakers'))

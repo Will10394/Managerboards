@@ -1,15 +1,16 @@
 # Rotation Tracker — Amplify + DynamoDB
 
 The same Rotation Tracker, hosted on AWS Amplify, with one shared warehouse-wide
-dataset in DynamoDB instead of each browser's localStorage. Managers sign in
-(Cognito, invite-only), edits save automatically, and other open sessions pick up
-changes live.
+dataset in DynamoDB instead of each browser's localStorage. No login: anyone who
+opens the link sees and edits the same data, edits save automatically, and other
+open screens pick up changes live. (Anyone with the link can view and change it —
+share the link only with people who should.)
 
 ```
 app/rotation-tracker.html   your standalone export, unmodified (build adds the hooks)
-src/cloud.js                sign-in screen, AppSync calls, "Synced / Sign out" pill
+src/cloud.js                guest access (no login), AppSync calls, "Synced" pill
 src/sync.js                 sectioning, gzip, chunking, diffed saves, conflict + live merge
-amplify/                    backend: Cognito auth + TrackerDoc model (DynamoDB)
+amplify/                    backend: guest identity pool + TrackerDoc model (DynamoDB)
 scripts/build.mjs           builds dist/index.html + dist/cloud.js
 test/                       node unit tests (npm test), browser e2e (test/e2e.py)
 ```
@@ -21,15 +22,9 @@ test/                       node unit tests (npm test), browser e2e (test/e2e.py
    detects `amplify.yml` and this as a Gen 2 app. If asked for a service role, let it
    create one. Deploy. First build takes ~5–8 min (it creates Cognito, AppSync and the
    DynamoDB table).
-3. **Create accounts:** Amplify console → your app → *Authentication* → *Users* →
-   *Create user* (email + temporary password). Self sign-up is disabled, so this is the
-   only way in. On first sign-in each person sets their own password.
-4. **Move your existing data up:** sign in *on the computer/browser where you've been
-   using the standalone tracker*. The cloud is empty, so it asks whether to upload this
-   browser's saved data — click **OK**. Everyone else then gets that data.
-   (Sign in somewhere else first and you'll get the sample data; if that happens, reset
-   isn't needed — just do step 4 from the right browser *before anyone edits*, or ask
-   me for a one-off import.)
+3. **Move your existing data up:** open the new link on the computer that has your
+   real data backed up (Setup → Backup all data on the old site). When it says the
+   cloud is empty, click Cancel, then Setup → Restore from backup. Everyone then sees it.
 
 ## Updating the tracker
 
