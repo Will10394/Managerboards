@@ -1,0 +1,144 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Manager Board — Sign in</title>
+  <style>
+    :root { --bg:#0f1115; --card:#1a1d24; --fg:#e8eaed; --muted:#9aa0a6;
+            --accent:#4f8cff; --err:#ff6b6b; --ok:#38c172; --line:#2a2e37; }
+    * { box-sizing: border-box; }
+    body { margin:0; font:15px/1.4 system-ui,-apple-system,Segoe UI,Roboto,sans-serif;
+           background:var(--bg); color:var(--fg); display:grid; place-items:center;
+           min-height:100vh; padding:24px; }
+    .card { width:100%; max-width:380px; background:var(--card); border:1px solid var(--line);
+            border-radius:14px; padding:28px; box-shadow:0 10px 40px rgba(0,0,0,.4); }
+    h1 { margin:0 0 4px; font-size:20px; }
+    p.sub { margin:0 0 20px; color:var(--muted); font-size:13px; }
+    label { display:block; font-size:12px; color:var(--muted); margin:14px 0 6px; }
+    input { width:100%; padding:11px 12px; border-radius:9px; border:1px solid var(--line);
+            background:#11141a; color:var(--fg); font-size:15px; }
+    input:focus { outline:none; border-color:var(--accent); }
+    button { width:100%; margin-top:20px; padding:12px; border:0; border-radius:9px;
+             background:var(--accent); color:#fff; font-size:15px; font-weight:600;
+             cursor:pointer; }
+    button:disabled { opacity:.6; cursor:default; }
+    .row { display:flex; justify-content:space-between; align-items:center; margin-top:16px; }
+    .link { background:none; border:0; color:var(--accent); cursor:pointer; font-size:13px;
+            width:auto; margin:0; padding:0; }
+    .msg { margin-top:16px; font-size:13px; min-height:18px; }
+    .msg.err { color:var(--err); }
+    .msg.ok  { color:var(--ok); }
+    .hide { display:none; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h1 id="title">Sign in</h1>
+    <p class="sub" id="subtitle">Manager Board — restricted access</p>
+
+    <!-- email + password -->
+    <div id="credFields">
+      <label for="email">Work email</label>
+      <input id="email" type="email" autocomplete="email" placeholder="you@amazon.com" />
+      <label for="password">Password</label>
+      <input id="password" type="password" autocomplete="current-password" placeholder="••••••••" />
+    </div>
+
+    <!-- confirmation code (shown after sign-up if email verification is on) -->
+    <div id="codeFields" class="hide">
+      <label for="code">Confirmation code (check your email)</label>
+      <input id="code" type="text" inputmode="numeric" placeholder="123456" />
+    </div>
+
+    <button id="primaryBtn">Sign in</button>
+
+    <div class="row">
+      <button class="link" id="toggleBtn">Need an account? Sign up</button>
+      <button class="link" id="forgotBtn">Forgot password?</button>
+    </div>
+
+    <div class="msg" id="msg"></div>
+  </div>
+
+  <!-- Amplify from CDN so this page stays a plain static file -->
+  <script type="module">
+    import { Amplify } from 'https://esm.sh/aws-amplify@6';
+    import {
+      signIn, signUp, confirmSignUp, resetPassword, confirmResetPassword,
+      getCurrentUser, signOut
+    } from 'https://esm.sh/aws-amplify@6/auth';
+
+    // amplify_outputs.json is emitted by the build next to this file.
+    const outputs = await fetch('./amplify_outputs.json').then(r => r.json());
+    Amplify.configure(outputs);
+
+    // Already signed in? Go straight to the app.
+    try { await getCurrentUser(); location.replace('./index.html'); } catch {}
+
+    const $ = (id) => document.getElementById(id);
+    const msg = $('msg');
+    let mode = 'signIn'; // signIn | signUp | confirm | forgot | forgotConfirm
+    let pendingEmail = '';
+
+    const setMsg = (t, cls='') => { msg.textContent = t; msg.className = 'msg ' + cls; };
+
+    function render() {
+      $('codeFields').classList.toggle('hide', !(mode === 'confirm' || mode === 'forgotConfirm'));
+      $('credFields').classList.toggle('hide', mode === 'confirm');
+      const map = {
+        signIn:        ['Sign in',            'Manager Board — restricted access', 'Sign in'],
+        signUp:        ['Create account',     'Use your approved work email',      'Sign up'],
+        confirm:       ['Confirm email',      'Enter the code we emailed you',     'Confirm'],
+        forgot:        ['Reset password',     'We will email you a reset code',    'Send reset code'],
+        forgotConfirm: ['Set new password',   'Enter the code + a new password',   'Update password'],
+      };
+      $('title').textContent = map[mode][0];
+      $('subtitle').textContent = map[mode][1];
+      $('primaryBtn').textContent = map[mode][2];
+      $('toggleBtn').textContent = (mode === 'signIn') ? 'Need an account? Sign up' : 'Back to sign in';
+      $('password').autocomplete = (mode === 'signIn') ? 'current-password' : 'new-password';
+    }
+
+    $('toggleBtn').onclick = () => { mode = (mode === 'signIn') ? 'signUp' : 'signIn'; setMsg(''); render(); };
+    $('forgotBtn').onclick = () => { mode = 'forgot'; setMsg(''); render(); };
+
+    $('primaryBtn').onclick = async () => {
+      const email = $('email').value.trim();
+      const password = $('password').value;
+      const code = $('code').value.trim();
+      $('primaryBtn').disabled = true;
+      try {
+        if (mode === 'signIn') {
+          await signIn({ username: email, password });
+          location.replace('./index.html');
+
+        } else if (mode === 'signUp') {
+          await signUp({ username: email, password, options: { userAttributes: { email } } });
+          pendingEmail = email;
+          mode = 'confirm'; setMsg('Account created — check your email for a code.', 'ok'); render();
+
+        } else if (mode === 'confirm') {
+          await confirmSignUp({ username: pendingEmail, confirmationCode: code });
+          mode = 'signIn'; setMsg('Email confirmed. You can sign in now.', 'ok'); render();
+
+        } else if (mode === 'forgot') {
+          await resetPassword({ username: email });
+          pendingEmail = email;
+          mode = 'forgotConfirm'; setMsg('Reset code sent to your email.', 'ok'); render();
+
+        } else if (mode === 'forgotConfirm') {
+          await confirmResetPassword({ username: pendingEmail, confirmationCode: code, newPassword: password });
+          mode = 'signIn'; setMsg('Password updated. Sign in with your new password.', 'ok'); render();
+        }
+      } catch (e) {
+        setMsg(e?.message || String(e), 'err');
+      } finally {
+        $('primaryBtn').disabled = false;
+      }
+    };
+
+    render();
+  </script>
+</body>
+</html>
